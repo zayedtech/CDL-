@@ -1,0 +1,304 @@
+`timescale 1ns / 10ps
+/* verilator coverage_off */
+
+module tb_transmitter ();
+
+    localparam CLK_PERIOD = 10ns;
+
+    initial begin
+        $dumpfile("waveform.vcd");
+        $dumpvars;
+    end
+
+    logic clk, n_rst;
+
+    // DUT signals
+    logic [7:0]  TX_Packet_Data;
+    logic [6:0]  buffer_occupancy;
+    logic [2:0]  tx_packet;
+    logic        get_tx_packet_data;
+    logic        tx_transfer_active;
+    logic        tx_error;
+    logic        dp_out;
+    logic        dm_out;
+
+    // test name tracker
+    string testname;
+
+    // clockgen
+    always begin
+        clk = 0;
+        #(CLK_PERIOD / 2.0);
+        clk = 1;
+        #(CLK_PERIOD / 2.0);
+    end
+
+    task reset_dut;
+    begin
+        n_rst = 0;
+        @(posedge clk);
+        @(posedge clk);
+        @(negedge clk);
+        n_rst = 1;
+        @(posedge clk);
+        @(posedge clk);
+    end
+    endtask
+
+    task init_signals;
+    begin
+        tx_packet        = 3'd0;
+        buffer_occupancy = 7'd0;
+        TX_Packet_Data   = 8'd0;
+    end
+    endtask
+
+    // wait for one full bit period (8.333 cycles average)
+    task wait_bit_period;
+    begin
+        // wait long enough for one bit_tick to fire
+        repeat(10) @(posedge clk);
+    end
+    endtask
+
+    // wait for n bit periods
+    task wait_n_bits;
+        input integer n;
+        integer i;
+    begin
+        for (i = 0; i < n; i++)
+            wait_bit_period();
+    end
+    endtask
+
+    // wait for one full byte to be sent (8 bit periods)
+    task wait_byte;
+    begin
+        wait_n_bits(8);
+    end
+    endtask
+
+    // wait for full packet based on type
+    // sync(8) + pid(8) + eop(2) + done(1) = 19 bit periods for handshake
+    // sync(8) + pid(8) + data(8*n) + crc(16) + eop(2) + done(1) for data
+    task wait_handshake_packet;
+    begin
+        wait_n_bits(19);
+    end
+    endtask
+
+    transmitter DUT (.*);
+
+    initial begin
+        n_rst = 1;
+        init_signals();
+        reset_dut();
+
+        // ─────────────────────────────────────────
+        // TEST 1: idle state — no transmission
+        // ─────────────────────────────────────────
+        testname = "test_idle";
+        @(negedge clk);
+        tx_packet = 3'd0;
+        repeat(20) @(posedge clk);
+        assert (tx_transfer_active == 1'b0)
+            else $error("FAILED %s: expected tx_transfer_active=0 in IDLE", testname);
+        assert (dp_out == 1'b1)
+            else $error("FAILED %s: expected dp_out=1 in IDLE (idle line state)", testname);
+        assert (dm_out == 1'b0)
+            else $error("FAILED %s: expected dm_out=0 in IDLE", testname);
+
+        // ─────────────────────────────────────────
+        // TEST 2: send ACK packet
+        // ─────────────────────────────────────────
+        testname = "test_ack";
+        reset_dut();
+        init_signals();
+        @(negedge clk);
+        tx_packet = 3'd3;
+        // wait for transmission to start
+        @(posedge clk);
+        repeat(5) @(posedge clk);
+        assert (tx_transfer_active == 1'b1)
+            else $error("FAILED %s: expected tx_transfer_active=1", testname);
+        // wait for full ACK packet
+        wait_handshake_packet();
+        assert (tx_transfer_active == 1'b0)
+            else $error("FAILED %s: expected tx_transfer_active=0 after ACK", testname);
+
+        // ─────────────────────────────────────────
+        // TEST 3: send NAK packet
+        // ─────────────────────────────────────────
+        testname = "test_nak";
+        reset_dut();
+        init_signals();
+        @(negedge clk);
+        tx_packet = 3'd4;
+        repeat(5) @(posedge clk);
+        assert (tx_transfer_active == 1'b1)
+            else $error("FAILED %s: expected tx_transfer_active=1", testname);
+        wait_handshake_packet();
+        assert (tx_transfer_active == 1'b0)
+            else $error("FAILED %s: expected tx_transfer_active=0 after NAK", testname);
+
+        // ─────────────────────────────────────────
+        // TEST 4: send STALL packet
+        // ─────────────────────────────────────────
+        testname = "test_stall";
+        reset_dut();
+        init_signals();
+        @(negedge clk);
+        tx_packet = 3'd5;
+        repeat(5) @(posedge clk);
+        assert (tx_transfer_active == 1'b1)
+            else $error("FAILED %s: expected tx_transfer_active=1", testname);
+        wait_handshake_packet();
+        assert (tx_transfer_active == 1'b0)
+            else $error("FAILED %s: expected tx_transfer_active=0 after STALL", testname);
+
+        // ─────────────────────────────────────────
+        // TEST 5: send DATA0 with 1 byte
+        // ─────────────────────────────────────────
+        testname = "test_data0_1byte";
+        reset_dut();
+        init_signals();
+        @(negedge clk);
+        tx_packet        = 3'd1;
+        buffer_occupancy = 7'd1;
+        TX_Packet_Data   = 8'hAA;
+        repeat(5) @(posedge clk);
+        assert (tx_transfer_active == 1'b1)
+            else $error("FAILED %s: expected tx_transfer_active=1", testname);
+        // wait through SYNC + PID
+        wait_n_bits(16);
+        // now in DATA — drop occupancy to signal last byte
+        buffer_occupancy = 7'd0;
+        // wait through DATA + CRC + EOP + DONE
+        // 1 byte data = 8 bits
+        // CRC = 16 bits
+        // EOP = 2 bits
+        // DONE = 1 bit
+        wait_n_bits(27);
+        assert (tx_transfer_active == 1'b0)
+            else $error("FAILED %s: expected tx_transfer_active=0 after DATA0", testname);
+
+        // ─────────────────────────────────────────
+        // TEST 6: send DATA1 with 3 bytes
+        // ─────────────────────────────────────────
+        testname = "test_data1_3bytes";
+        reset_dut();
+        init_signals();
+        @(negedge clk);
+        tx_packet        = 3'd2;
+        buffer_occupancy = 7'd3;
+        TX_Packet_Data   = 8'hAA;
+        repeat(5) @(posedge clk);
+        assert (tx_transfer_active == 1'b1)
+            else $error("FAILED %s: expected tx_transfer_active=1", testname);
+        // wait through SYNC + PID
+        wait_n_bits(16);
+        // byte 1
+        buffer_occupancy = 7'd2;
+        TX_Packet_Data   = 8'hBB;
+        wait_byte();
+        // byte 2
+        buffer_occupancy = 7'd1;
+        TX_Packet_Data   = 8'hCC;
+        wait_byte();
+        // byte 3 — last byte
+        buffer_occupancy = 7'd0;
+        wait_byte();
+        // CRC + EOP + DONE
+        wait_n_bits(19);
+        assert (tx_transfer_active == 1'b0)
+            else $error("FAILED %s: expected tx_transfer_active=0 after DATA1", testname);
+
+        // ─────────────────────────────────────────
+        // TEST 7: EOP drives both lines low
+        // ─────────────────────────────────────────
+        testname = "test_eop";
+        reset_dut();
+        init_signals();
+        @(negedge clk);
+        tx_packet = 3'd3; // ACK — shortest packet to get to EOP quickly
+        // wait through SYNC + PID
+        wait_n_bits(16);
+        // should be in EOP now
+        // sample dp_out and dm_out
+        @(posedge clk);
+        assert (dp_out == 1'b0 && dm_out == 1'b0)
+            else $error("FAILED %s: expected dp_out=0 dm_out=0 during EOP, got dp=%b dm=%b",
+                         testname, dp_out, dm_out);
+
+        // ─────────────────────────────────────────
+        // TEST 8: get_tx_packet_data pulses in DATA
+        // ─────────────────────────────────────────
+        testname = "test_get_tx_packet_data";
+        reset_dut();
+        init_signals();
+        @(negedge clk);
+        tx_packet        = 3'd1;
+        buffer_occupancy = 7'd2;
+        TX_Packet_Data   = 8'hAA;
+        // wait through SYNC + PID
+        wait_n_bits(16);
+        // in DATA now — check get_tx_packet_data pulses
+        fork
+            begin
+                // monitor get_tx_packet_data
+                @(posedge get_tx_packet_data);
+                $display("%s: get_tx_packet_data pulsed correctly", testname);
+            end
+            begin
+                // timeout after 100 cycles
+                repeat(100) @(posedge clk);
+                $error("FAILED %s: get_tx_packet_data never pulsed", testname);
+            end
+        join_any
+        disable fork;
+
+        // ─────────────────────────────────────────
+        // TEST 9: n_rst mid transmission
+        // ─────────────────────────────────────────
+        testname = "test_mid_reset";
+        reset_dut();
+        init_signals();
+        @(negedge clk);
+        tx_packet        = 3'd1;
+        buffer_occupancy = 7'd4;
+        TX_Packet_Data   = 8'hAA;
+        // wait through SYNC into PID
+        wait_n_bits(10);
+        // reset mid transmission
+        reset_dut();
+        assert (tx_transfer_active == 1'b0)
+            else $error("FAILED %s: expected tx_transfer_active=0 after reset", testname);
+        assert (dp_out == 1'b1)
+            else $error("FAILED %s: expected dp_out=1 after reset", testname);
+        assert (dm_out == 1'b0)
+            else $error("FAILED %s: expected dm_out=0 after reset", testname);
+
+        // ─────────────────────────────────────────
+        // TEST 10: line returns to idle after packet
+        // ─────────────────────────────────────────
+        testname = "test_idle_after_packet";
+        reset_dut();
+        init_signals();
+        @(negedge clk);
+        tx_packet = 3'd3; // ACK
+        wait_handshake_packet();
+        // give it a few extra cycles to settle
+        repeat(20) @(posedge clk);
+        assert (dp_out == 1'b1)
+            else $error("FAILED %s: expected dp_out=1 after packet (idle line)", testname);
+        assert (dm_out == 1'b0)
+            else $error("FAILED %s: expected dm_out=0 after packet", testname);
+        assert (tx_transfer_active == 1'b0)
+            else $error("FAILED %s: expected tx_transfer_active=0 after packet", testname);
+
+        $display("ALL TESTS DONE");
+        $finish;
+    end
+
+endmodule
+/* verilator coverage_on */
