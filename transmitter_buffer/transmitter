@@ -32,14 +32,21 @@ module transmitter (
     logic        next_line_state;
     logic [3:0]  adjust_count_out;
 
+    logic [3:0] rollover_val;
 
+    always_comb begin
+        if (adjust_count_out == 4'd2)
+            rollover_val = 4'd9;
+        else
+            rollover_val = 4'd8;
+    end
     
-    flex_counter #(.SIZE(2)) adjust_counter (
+    flex_counter #(.SIZE(4)) adjust_counter (
         .clk          (clk),
         .n_rst        (n_rst),
         .clear        (1'b0),
         .count_enable (bit_tick),
-        .rollover_val (2'd3),
+        .rollover_val (4'd3),
         .count_out    (adjust_count_out),
         .rollover_flag()
     );
@@ -50,7 +57,7 @@ module transmitter (
         .n_rst        (n_rst),
         .clear        (1'b0),
         .count_enable (1'b1),
-        .rollover_val (adjust_count_out == 2'd2 ? 4'd9 : 4'd8),
+        .rollover_val (rollover_val),
         .count_out    (),
         .rollover_flag(bit_tick)
     );
