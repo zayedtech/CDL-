@@ -42,47 +42,70 @@ module tb_usb_rx ();
     begin
         dp_in = 0;
         dm_in = 1;
-        #(83.3333ns);
+        #(83.4ns);
         dp_in = 1;
         dm_in = 0;
-        #(83.3333ns);
+        #(83.4ns);
         dp_in = 0;
         dm_in = 1;
-        #(83.3333ns);
+        #(83.4ns);
         dp_in = 1;
         dm_in = 0;
-        #(83.3333ns);
+        #(83.4ns);
         dp_in = 0;
         dm_in = 1;
-        #(83.3333ns);
+        #(83.4ns);
         dp_in = 1;
         dm_in = 0;
-        #(83.3333ns);
+        #(83.4ns);
         dp_in = 0;
         dm_in = 1;
-        #(83.3333ns);
-        #(83.3333ns);
+        #(83.4ns);
+        #(83.4ns);
     end
     endtask
 
     task ack_pid;
     begin
-        #(83.3333ns);
-        #(83.3333ns);
+        /*11010010*/
         dp_in = 1;
         dm_in = 0;
-        #(83.3333ns);
-        #(83.3333ns);
+        #(83.4ns);
+        #(83.4ns);
         dp_in = 0;
         dm_in = 1;
-        #(83.3333ns);
+        #(83.4ns);
         dp_in = 1;
         dm_in = 0;
-        #(83.3333ns);
-        #(83.3333ns);
+        #(83.4ns);
+        #(83.4ns);
         dp_in = 0;
         dm_in = 1;
-        #(83.3333ns);
+        #(83.4ns);
+        #(83.4ns);
+        #(83.4ns);
+    end
+    endtask
+
+    task in_pid;
+    begin
+        /*01101001*/
+        #(83.4ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.4ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.4ns);
+        #(83.4ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.4ns);
+        #(83.4ns);
+        #(83.4ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.4ns);
     end
     endtask
     
@@ -90,10 +113,10 @@ module tb_usb_rx ();
     begin
         dp_in = 0;
         dm_in = 0;
-        #(83.3333ns);
-        #(83.3333ns);
+        #(83.4ns);
+        #(83.4ns);
         dp_in = 1;
-        #(83.3333ns);
+        #(83.4ns);
     end
     endtask
 
@@ -106,13 +129,16 @@ module tb_usb_rx ();
         test_name = "reset";
         reset_dut;
 
-        #(83.3333ns);
+        #(83.4ns);
+        #(83.4ns);
         test_name = "correct sync byte";
         buffer_occupancy = 0;
         sync_byte();
         ack_pid();
         eop();
-        #(83.3333ns);
+        #(83.4ns);
+        #(83.4ns);
+        #(83.4ns);
 
         $finish;
     end
