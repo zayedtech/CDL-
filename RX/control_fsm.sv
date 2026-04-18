@@ -1,7 +1,7 @@
 `timescale 1ns / 10ps
 
-typedef enum logic [3:0]{
-  IDLE=0, CLEAR=1, START=2, DATA1=3, DATA0=4, OUT=5, IN=6, ACK=7, EOP_START=8, EOP_0=9, WAIT_1=10, EOP_1=11, WAIT_2=12, IDLE_VAL=13, ERROR=14, DONE=15
+typedef enum logic [4:0]{
+  IDLE=0, CLEAR=1, START=2, DATA1=3, DATA0=4, OUT=5, IN=6, ACK=7, EOP_START=8, EOP_0=9, WAIT_1=10, EOP_1=11, WAIT_2=12, IDLE_VAL=13, ERROR=14, DONE=15, FL_DATA1=16, FL_DATA0=17
 } state_t;
 
 
@@ -17,8 +17,8 @@ always_comb begin : nextStateLogic
         {IDLE, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = CLEAR;
         {CLEAR, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = START;
         {START, 1'b?, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = IDLE;
-        {START, 1'b?, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = DATA1;
-        {START, 1'b?, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = DATA0;
+        {START, 1'b?, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = FL_DATA1;
+        {START, 1'b?, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = FL_DATA0;
         {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = OUT;
         {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = IN;
         {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = ACK;
@@ -38,7 +38,10 @@ always_comb begin : nextStateLogic
         {DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: nextstate = EOP_START;    
         {DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: nextstate = EOP_START;
         {ACK, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = EOP_START;    
+        {FL_DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = DATA1;    
+        {FL_DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = DATA0;    
         
+
         default: nextstate = state;
     endcase
 end
@@ -90,7 +93,7 @@ always_comb begin : outputLogic
             timer_16 = 1'b0;
             timer_8 = 1'b0;
         end
-        DATA1: begin
+        FL_DATA1: begin
             clear_err = 1'b0;
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
@@ -102,13 +105,37 @@ always_comb begin : outputLogic
             timer_16 = 1'b0;
             timer_8 = 1'b0;
         end
-        DATA0: begin
+        DATA1: begin
+            clear_err = 1'b0;
+            en_timer = 1'b0;
+            rx_data_ready = 1'b0;
+            transfer_active = 1'b1;
+            rx_packet = 3'b000;
+            flush_and_start = 1'b0;
+            eop_err = 1'b0;
+            pack_done = 1'b0;
+            timer_16 = 1'b0;
+            timer_8 = 1'b0;
+        end
+        FL_DATA0: begin
             clear_err = 1'b0;
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
             rx_packet = 3'b001;
             flush_and_start = 1'b1;
+            eop_err = 1'b0;
+            pack_done = 1'b0;
+            timer_16 = 1'b0;
+            timer_8 = 1'b0;
+        end
+        DATA0: begin
+            clear_err = 1'b0;
+            en_timer = 1'b0;
+            rx_data_ready = 1'b0;
+            transfer_active = 1'b1;
+            rx_packet = 3'b000;
+            flush_and_start = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
             timer_16 = 1'b0;
