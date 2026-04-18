@@ -10,6 +10,8 @@ output logic clear_err, en_timer, rx_data_ready, transfer_active, flush_and_star
 
 state_t state, nextstate;
 
+//logic [2:0] packet_type;
+
 always_comb begin : nextStateLogic
     casez ({state, new_pack, pid_error, data_1, data_0, out_token, in_token, ack, strobes_16, cycles_8, dm, dp, data_done})
         {IDLE, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = CLEAR;
@@ -22,7 +24,7 @@ always_comb begin : nextStateLogic
         {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = ACK;
         {OUT, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = EOP_START;
         {IN, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = EOP_START;
-        {EOP_START, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?}: nextstate = EOP_0;
+        {EOP_START, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = EOP_0;
         {EOP_0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b0, 1'b?}: nextstate = WAIT_1;
         {EOP_0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?}: nextstate = ERROR;
         {WAIT_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?}: nextstate = EOP_1;
@@ -34,7 +36,8 @@ always_comb begin : nextStateLogic
         {DONE, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = IDLE;
         {ERROR, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = IDLE;
         {DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: nextstate = EOP_START;    
-        {DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: nextstate = EOP_START;    
+        {DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: nextstate = EOP_START;
+        {ACK, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = EOP_START;    
         
         default: nextstate = state;
     endcase
@@ -157,7 +160,7 @@ always_comb begin : outputLogic
             eop_err = 1'b0;
             pack_done = 1'b0;
             timer_16 = 1'b0;
-            timer_8 = 1'b1;
+            timer_8 = 1'b0;
         end
         EOP_0: begin
             clear_err = 1'b0;
@@ -259,5 +262,4 @@ always_comb begin : outputLogic
 end
 
 endmodule
-
 
