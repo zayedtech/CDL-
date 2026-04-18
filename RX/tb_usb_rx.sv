@@ -40,28 +40,29 @@ module tb_usb_rx ();
     
     task sync_byte;
     begin
+        /*10000000*/
         dp_in = 0;
         dm_in = 1;
-        #(83.4ns);
+        #(83.33333ns);
         dp_in = 1;
         dm_in = 0;
-        #(83.4ns);
+        #(83.33333ns);
         dp_in = 0;
         dm_in = 1;
-        #(83.4ns);
+        #(83.33333ns);
         dp_in = 1;
         dm_in = 0;
-        #(83.4ns);
+        #(83.33333ns);
         dp_in = 0;
         dm_in = 1;
-        #(83.4ns);
+        #(83.33333ns);
         dp_in = 1;
         dm_in = 0;
-        #(83.4ns);
+        #(83.33333ns);
         dp_in = 0;
         dm_in = 1;
-        #(83.4ns);
-        #(83.4ns);
+        #(83.33333ns);
+        #(83.33333ns);
     end
     endtask
 
@@ -70,26 +71,70 @@ module tb_usb_rx ();
         /*11010010*/
         dp_in = 1;
         dm_in = 0;
-        #(83.4ns);
-        #(83.4ns);
+        #(83.33333ns);
+        #(83.33333ns);
         dp_in = 0;
         dm_in = 1;
-        #(83.4ns);
+        #(83.33333ns);
         dp_in = 1;
         dm_in = 0;
-        #(83.4ns);
-        #(83.4ns);
+        #(83.33333ns);
+        #(83.33333ns);
         dp_in = 0;
         dm_in = 1;
-        #(83.4ns);
-        #(83.4ns);
-        #(83.4ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
     end
     endtask
 
     task in_pid;
     begin
         /*01101001*/
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+    end
+    endtask
+    
+    task data0_pid;
+    begin
+        /*11000011*/
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+    end
+    endtask
+
+    task data_crc;
+    begin
+          /*00000001_00000001*/
         #(83.4ns);
         dp_in = 1;
         dm_in = 0;
@@ -97,26 +142,94 @@ module tb_usb_rx ();
         dp_in = 0;
         dm_in = 1;
         #(83.4ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.4ns);
+        dp_in = 0;
+        dm_in = 1;
         #(83.4ns);
         dp_in = 1;
         dm_in = 0;
         #(83.4ns);
+        dp_in = 0;
+        dm_in = 1;
         #(83.4ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.4ns);
+
+        #(83.4ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.4ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.4ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.4ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.4ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.4ns);
+        dp_in = 1;
+        dm_in = 0;
         #(83.4ns);
         dp_in = 0;
         dm_in = 1;
         #(83.4ns);
     end
     endtask
-    
+
+    task random_data;
+    begin
+        /*10101010_01010101*/
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        #(83.33333ns);
+    end
+    endtask
+
     task eop;
     begin
         dp_in = 0;
         dm_in = 0;
-        #(83.4ns);
-        #(83.4ns);
+        #(83.33333ns);
+        #(83.33333ns);
         dp_in = 1;
-        #(83.4ns);
+        #(83.33333ns);
     end
     endtask
 
@@ -129,16 +242,29 @@ module tb_usb_rx ();
         test_name = "reset";
         reset_dut;
 
-        #(83.4ns);
-        #(83.4ns);
+        #(83.33333ns);
+        #(83.33333ns);
         test_name = "correct sync byte";
         buffer_occupancy = 0;
         sync_byte();
         ack_pid();
         eop();
-        #(83.4ns);
-        #(83.4ns);
-        #(83.4ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+
+        reset_dut();
+        
+        test_name = "correct data0";
+        buffer_occupancy = 0;
+        sync_byte(); //1byte
+        data0_pid(); //1byte
+        random_data(); //2bytes
+        data_crc(); //2bytes
+        eop(); //EOP
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
 
         $finish;
     end
