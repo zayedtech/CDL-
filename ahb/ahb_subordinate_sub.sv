@@ -43,11 +43,13 @@ module ahb_subordinate_usb (
    localparam [2:0] SIZE_WORD     = 3'd2;
 
 
-   localparam [2:0] PID_OUT   = 3'd0;
-   localparam [2:0] PID_IN    = 3'd1;
-   localparam [2:0] PID_DATA0 = 3'd2;
-   localparam [2:0] PID_DATA1 = 3'd3;
-   localparam [2:0] PID_ACK   = 3'd4;
+   // Matches rx_packet coding from control_fsm/usb_rx:
+   // DATA0=1, DATA1=2, ACK=3, OUT=6, IN=7
+   localparam [2:0] PID_DATA0 = 3'd1;
+   localparam [2:0] PID_DATA1 = 3'd2;
+   localparam [2:0] PID_ACK   = 3'd3;
+   localparam [2:0] PID_OUT   = 3'd6;
+   localparam [2:0] PID_IN    = 3'd7;
 
 
    localparam [2:0] TX_NONE   = 3'd0;
@@ -115,6 +117,8 @@ module ahb_subordinate_usb (
    logic [1:0] buf_index;
    logic [1:0] buf_lane;
    logic [31:0] buf_word;
+   logic buf_prime;
+   logic [31:0] completed_buf_word;
 
 
    always_comb begin
@@ -268,6 +272,20 @@ module ahb_subordinate_usb (
        end
    end
 
+   always_comb begin
+       completed_buf_word = buf_word;
+       if ((state == ST_BUF_READ) && !buf_prime) begin
+           if (buf_lane == 2'd0)
+               completed_buf_word[7:0] = rx_data;
+           else if (buf_lane == 2'd1)
+               completed_buf_word[15:8] = rx_data;
+           else if (buf_lane == 2'd2)
+               completed_buf_word[23:16] = rx_data;
+           else
+               completed_buf_word[31:24] = rx_data;
+       end
+   end
+
 
    always_comb begin
        next_hrdata = 32'h0000_0000;
@@ -307,7 +325,7 @@ module ahb_subordinate_usb (
                default: next_hrdata = 32'h0000_0000;
            endcase
        end else if ((state == ST_BUF_READ) && (buf_index == buf_count)) begin
-           next_hrdata = buf_word;
+           next_hrdata = completed_buf_word;
        end
    end
 
@@ -324,9 +342,14 @@ module ahb_subordinate_usb (
        case (state)
            ST_IDLE: begin
                if (current_error) begin
-                   hready = 1'b0;
-                   hresp  = 1'b1;
-               end else if (start_buf_read || start_buf_write) begin
+                   // Keep addr-only phase clean; drive ERROR in ST_ERR_1/ST_ERR_2.
+                   hready = 1'b1;
+                   hresp  = 1'b0;
+               end else if (start_buf_write) begin
+                   // start_buf_read uses current haddr/htrans and is true during the
+                   // address phase; HREADY must stay high there. Buffer read wait states
+                   // are inserted only in ST_BUF_READ. start_buf_write uses prev_* and
+                   // is only true during the data phase of buffer halfword/word writes.
                    hready = 1'b0;
                end else begin
                    if (active_transfer && !hwrite && !current_error && (haddr <= 4'h3) && (hsize == SIZE_BYTE) && (buffer_occupancy != 7'd0))
@@ -366,10 +389,10 @@ module ahb_subordinate_usb (
            end
            ST_BUF_READ: begin
                hready = 1'b0;
-               if (buffer_occupancy != 7'd0)
-                   get_rx_data = 1'b1;
-               if (buf_index == buf_count)
-                   hready = 1'b1;
+               if (buffer_occupancy != 7'd0) begin
+                   if (buf_prime || (buf_index != buf_count))
+                       get_rx_data = 1'b1;
+               end
            end
            default: begin
                hready = 1'b1;
@@ -401,16 +424,20 @@ module ahb_subordinate_usb (
            buf_index <= 2'd0;
            buf_lane <= 2'd0;
            buf_word <= 32'h0;
+           buf_prime <= 1'b0;
        end
       
        else begin
            hrdata <= next_hrdata;
 
 
-           if (rx_data_ready)
+
+           if (rx_data_ready & (rx_packet != PID_ACK))
                status_new_data_reg <= 1'b1;
-           if (buffer_occupancy == 7'd0)
-               status_new_data_reg <= 1'b0;
+           //if (rx_data_ready)
+               //status_new_data_reg <= 1'b1;
+           //else if (get_rx_data)
+               //status_new_data_reg <= 1'b0;  
            if (rx_packet == PID_IN)
                status_in_reg <= 1'b1;
            if (rx_packet == PID_OUT)
@@ -451,6 +478,7 @@ module ahb_subordinate_usb (
                        buf_index <= 2'd0;
                        buf_lane <= haddr[1:0];
                        buf_word <= 32'h0;
+                       buf_prime <= 1'b1;
                    end
 
 
@@ -505,7 +533,10 @@ module ahb_subordinate_usb (
                    prev_valid <= 1'b0;
                end
                ST_BUF_READ: begin
-                   if (buffer_occupancy != 7'd0) begin
+                   if (buf_prime) begin
+                       if (buffer_occupancy != 7'd0)
+                           buf_prime <= 1'b0;
+                   end else begin
                        if (buf_lane == 2'd0)
                            buf_word[7:0] <= rx_data;
                        else if (buf_lane == 2'd1)
@@ -514,7 +545,6 @@ module ahb_subordinate_usb (
                            buf_word[23:16] <= rx_data;
                        else
                            buf_word[31:24] <= rx_data;
-
 
                        if (buf_index == buf_count) begin
                            state <= ST_IDLE;
