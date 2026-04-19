@@ -1,57 +1,63 @@
 `timescale 1ns / 10ps
 
 typedef enum logic [4:0]{
-  IDLE=0, CLEAR=1, START=2, DATA1=3, DATA0=4, OUT=5, IN=6, ACK=7, EOP_START=8, EOP_0=9, WAIT_1=10, EOP_1=11, WAIT_2=12, IDLE_VAL=13, ERROR=14, DONE=15, FL_DATA1=16, FL_DATA0=17
+  IDLE=0, CLEAR=1, START=2, DATA1=3, DATA0=4, OUT=5, IN=6, ACK=7, EOP_START=8, EOP_0=9, WAIT_1=10, EOP_1=11, WAIT_2=12, IDLE_VAL=13, ERROR=14, DONE=15, FL_DATA1=16, FL_DATA0=17, FL_IN=18, FL_OUT=19
 } state_t;
 
 
-module control_fsm (input logic clk, n_rst, new_pack, pid_error, data_1, data_0, out_token, in_token, ack, strobes_16, cycles_8, dm, dp, data_done,
-output logic clear_err, en_timer, rx_data_ready, transfer_active, flush_and_start, eop_err, pack_done, timer_16, timer_8, output logic [2:0] rx_packet);
+module control_fsm (input logic clk, n_rst, new_pack, pid_error, data_1, data_0, out_token, in_token, ack, token_done, cycles_8, dm, dp, data_done,
+output logic clear_err, en_timer, rx_data_ready, transfer_active, flush_data, eop_err, pack_done, flush_token, timer_8, output logic [2:0] rx_packet);
 
 state_t state, nextstate;
 
-//logic [2:0] packet_type;
+logic [2:0] packet_type_ffin, packet_type_ffout;
 
 always_comb begin : nextStateLogic
-    casez ({state, new_pack, pid_error, data_1, data_0, out_token, in_token, ack, strobes_16, cycles_8, dm, dp, data_done})
-        {IDLE, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = CLEAR;
-        {CLEAR, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = START;
-        {START, 1'b?, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = IDLE;
-        {START, 1'b?, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = FL_DATA1;
-        {START, 1'b?, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = FL_DATA0;
-        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = OUT;
-        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = IN;
-        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = ACK;
-        {OUT, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = EOP_START;
-        {IN, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = EOP_START;
-        {EOP_START, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = EOP_0;
-        {EOP_0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b0, 1'b?}: nextstate = WAIT_1;
-        {EOP_0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?}: nextstate = ERROR;
-        {WAIT_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?}: nextstate = EOP_1;
-        {EOP_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b0, 1'b?}: nextstate = WAIT_2;
-        {EOP_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?}: nextstate = ERROR;
-        {WAIT_2, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?}: nextstate = IDLE_VAL;
-        {IDLE_VAL, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b1, 1'b?}: nextstate = DONE;
-        {IDLE_VAL, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b?}: nextstate = ERROR;
-        {DONE, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = IDLE;
-        {ERROR, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = IDLE;
-        {DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: nextstate = EOP_START;    
-        {DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: nextstate = EOP_START;
-        {ACK, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = EOP_START;    
-        {FL_DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = DATA1;    
-        {FL_DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: nextstate = DATA0;    
+    casez ({state, new_pack, pid_error, data_1, data_0, out_token, in_token, ack, token_done, cycles_8, dm, dp, data_done})
+        {IDLE, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = CLEAR; packet_type_ffin = packet_type_ffout;end
+        {CLEAR, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = START; packet_type_ffin = packet_type_ffout;end
+        {START, 1'b?, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = IDLE; packet_type_ffin = 3'b000;end
+        {START, 1'b?, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_DATA1;packet_type_ffin = 3'b010;end
+        {START, 1'b?, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_DATA0;packet_type_ffin = 3'b001;end
+        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_OUT; packet_type_ffin = 3'b110;end
+        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_IN;packet_type_ffin = 3'b111;end
+        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = ACK;packet_type_ffin = 3'b011;end
+        {OUT, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_START;packet_type_ffin = packet_type_ffout;end
+        {IN, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_START;packet_type_ffin = packet_type_ffout;end
+        {EOP_START, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_0;packet_type_ffin = packet_type_ffout;end
+        {EOP_0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b0, 1'b?}: begin nextstate = WAIT_1;packet_type_ffin = packet_type_ffout;end
+        {EOP_0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
+        {WAIT_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_1;packet_type_ffin = packet_type_ffout;end
+        {EOP_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b0, 1'b?}: begin nextstate = WAIT_2;packet_type_ffin = packet_type_ffout;end
+        {EOP_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
+        {WAIT_2, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?}:begin  nextstate = IDLE_VAL;packet_type_ffin = packet_type_ffout;end
+        {IDLE_VAL, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b1, 1'b?}: begin nextstate = DONE;packet_type_ffin = packet_type_ffout;end
+        {IDLE_VAL, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
+        {DONE, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = IDLE;packet_type_ffin = 3'b000;end
+        {ERROR, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = IDLE; packet_type_ffin = 3'b000;end
+        {DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: begin nextstate = EOP_START;  packet_type_ffin = packet_type_ffout;end  
+        {DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: begin nextstate = EOP_START;packet_type_ffin = packet_type_ffout;end
+        {ACK, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}:begin  nextstate = EOP_START;   packet_type_ffin = packet_type_ffout; end
+        {FL_DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = DATA1; packet_type_ffin = packet_type_ffout; end  
+        {FL_DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = DATA0; packet_type_ffin = packet_type_ffout;end   
         
+        {FL_IN, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}:begin  nextstate = IN;   packet_type_ffin = packet_type_ffout; end
+        {FL_OUT, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = OUT;  packet_type_ffin = packet_type_ffout; end 
+        
+        //add their output downstairs
 
-        default: nextstate = state;
+        default: begin nextstate = state; packet_type_ffin = packet_type_ffout; end
     endcase
 end
 
 always_ff @(posedge clk, negedge n_rst) begin : stateFF
     if (n_rst == 0) begin
         state <= IDLE;
+        packet_type_ffout <= 3'b000;
     end
     else begin
         state <= nextstate;
+        packet_type_ffout <= packet_type_ffin;
     end
 end
 
@@ -62,11 +68,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b0;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         CLEAR: begin
@@ -74,11 +80,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         START: begin
@@ -86,11 +92,11 @@ always_comb begin : outputLogic
             en_timer = 1'b1;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         FL_DATA1: begin
@@ -98,11 +104,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b010;
-            flush_and_start = 1'b1;
+            
+            flush_data = 1'b1;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         DATA1: begin
@@ -110,11 +116,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         FL_DATA0: begin
@@ -122,11 +128,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b001;
-            flush_and_start = 1'b1;
+            
+            flush_data = 1'b1;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         DATA0: begin
@@ -134,11 +140,23 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
+            timer_8 = 1'b0;
+        end
+        FL_OUT: begin
+            clear_err = 1'b0;
+            en_timer = 1'b0;
+            rx_data_ready = 1'b0;
+            transfer_active = 1'b1;
+            
+            flush_data = 1'b0;
+            eop_err = 1'b0;
+            pack_done = 1'b0;
+            flush_token = 1'b1;
             timer_8 = 1'b0;
         end
         OUT: begin
@@ -146,11 +164,23 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b110;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b1;
+            flush_token = 1'b0;
+            timer_8 = 1'b0;
+        end
+        FL_IN: begin
+            clear_err = 1'b0;
+            en_timer = 1'b0;
+            rx_data_ready = 1'b0;
+            transfer_active = 1'b1;
+            
+            flush_data = 1'b0;
+            eop_err = 1'b0;
+            pack_done = 1'b0;
+            flush_token = 1'b1;
             timer_8 = 1'b0;
         end
         IN: begin
@@ -158,11 +188,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b111;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b1;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         ACK: begin
@@ -170,11 +200,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b011;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         EOP_START: begin
@@ -182,11 +212,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         EOP_0: begin
@@ -194,11 +224,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         WAIT_1: begin
@@ -206,11 +236,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b1;
         end
         EOP_1: begin
@@ -218,11 +248,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         ERROR: begin
@@ -230,11 +260,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b1;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         WAIT_2: begin
@@ -242,11 +272,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b1;
         end
         IDLE_VAL: begin
@@ -254,11 +284,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b1;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         DONE: begin
@@ -266,11 +296,11 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b1;
             transfer_active = 1'b1; //maybe off
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
         default: begin
@@ -278,15 +308,17 @@ always_comb begin : outputLogic
             en_timer = 1'b0;
             rx_data_ready = 1'b0;
             transfer_active = 1'b0;
-            rx_packet = 3'b000;
-            flush_and_start = 1'b0;
+            
+            flush_data = 1'b0;
             eop_err = 1'b0;
             pack_done = 1'b0;
-            timer_16 = 1'b0;
+            flush_token = 1'b0;
             timer_8 = 1'b0;
         end
     endcase
 end
+
+assign rx_packet = packet_type_ffout;
 
 endmodule
 
