@@ -410,18 +410,15 @@ module tb_ahb_usb();
         execute_transactions(1);
         finish_transactions();
 
-        test_name = "ACK status after RX done";
+        test_name = "IN status after RX done";
         reset_dut();
         sync_byte();
         in_pid();
+        token_data_crc();
         eop();
         #(83.33333);
-        #(83.33333);
-        #(83.33333);
-        #(83.33333);
-        #(83.33333);
-        #(83.33333);
-        enqueue_read(4'h4, 2'd1, 32'h0000_0002);
+
+        enqueue_read(4'h4, 2'd1, 32'h0000_0003);
         execute_transactions(1);
         finish_transactions();
 
