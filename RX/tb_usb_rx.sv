@@ -229,7 +229,7 @@ module tb_usb_rx ();
 
     task token_data_crc;
     begin
-        /*01110_1001_0111110*/
+        /*01110_0000_0111110*/
         dp_in = 1;
         dm_in = 0;
         #(83.33333ns);
@@ -241,13 +241,17 @@ module tb_usb_rx ();
         dp_in = 0;
         dm_in = 1;
         #(83.33333ns);
-        #(83.33333ns);
         dp_in = 1;
         dm_in = 0;
         #(83.33333ns);
         dp_in = 0;
         dm_in = 1;
         #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
         #(83.33333ns);
         dp_in = 1;
         dm_in = 0;
@@ -379,6 +383,21 @@ module tb_usb_rx ();
         sync_byte(); //1byte
         out_pid(); //1byte
         token_data_crc(); //2bytes
+        eop(); //EOP
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+
+        reset_dut();
+        
+        test_name = "buffer filled";
+        buffer_occupancy = 62;
+        sync_byte(); //1byte
+        data0_pid(); //1byte
+        random_data(); //2bytes
+        buffer_occupancy = 64;
+        random_data(); //2bytes
+        data_crc(); //2bytes
         eop(); //EOP
         #(83.33333ns);
         #(83.33333ns);
