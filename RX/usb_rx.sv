@@ -56,7 +56,7 @@ flex_counter #(.SIZE(4)) counter8 (
         .n_rst(n_rst),
         .clear(~timer_8),  
         .count_enable(timer_8),
-    .rollover_val(cycles),
+    .rollover_val(4'b1000),
         .count_out(unused2),
         .rollover_flag(cycles_8));
 
