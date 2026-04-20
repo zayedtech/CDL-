@@ -41,6 +41,12 @@ module tb_usb_rx ();
     task sync_byte;
     begin
         /*10000000*/
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+
         dp_in = 0;
         dm_in = 1;
         #(83.33333ns);
@@ -63,6 +69,38 @@ module tb_usb_rx ();
         dm_in = 1;
         #(83.33333ns);
         #(83.33333ns);
+    end
+    endtask
+
+    task incorrect_sync_byte;
+    begin
+        
+        /*10000000*/
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        
     end
     endtask
 
@@ -241,6 +279,7 @@ module tb_usb_rx ();
         dp_in = 0;
         dm_in = 1;
         #(83.33333ns);
+
         dp_in = 1;
         dm_in = 0;
         #(83.33333ns);
@@ -253,6 +292,7 @@ module tb_usb_rx ();
         dp_in = 0;
         dm_in = 1;
         #(83.33333ns);
+
         dp_in = 1;
         dm_in = 0;
         #(83.33333ns);
@@ -266,7 +306,79 @@ module tb_usb_rx ();
     end
     endtask
 
-    task random_data;
+    task incorrect_token_data_crc;
+    begin
+        /*11111_0000_0111110*/
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        
+    end
+    endtask
+
+
+    task token_data_crc_incorrect_ep;
+    begin
+        /*01110_0000_0111110*/
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        
+    end
+    endtask
+
+
+    task twobytesofdata;
     begin
         /*10101010_01010101*/
         #(83.33333ns);
@@ -285,7 +397,28 @@ module tb_usb_rx ();
         dp_in = 0;
         dm_in = 1;
         #(83.33333ns);
+        
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        #(83.33333ns);
+    end
+    endtask
 
+    task incorrect_pid;
+    begin
         dp_in = 1;
         dm_in = 0;
         #(83.33333ns);
@@ -301,6 +434,28 @@ module tb_usb_rx ();
         dp_in = 0;
         dm_in = 1;
         #(83.33333ns);
+        #(83.33333ns);
+    end
+    endtask
+
+    task onebyteofdata;
+    begin
+        /*01010101*/
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        dp_in = 0;
+        dm_in = 1;
         #(83.33333ns);
     end
     endtask
@@ -323,11 +478,9 @@ module tb_usb_rx ();
         dm_in = 0;
 
         test_name = "reset";
-        reset_dut;
+        reset_dut();
 
-        #(83.33333ns);
-        #(83.33333ns);
-        test_name = "correct sync byte";
+        test_name = "correct ack";
         buffer_occupancy = 0;
         sync_byte();
         ack_pid();
@@ -337,13 +490,13 @@ module tb_usb_rx ();
         #(83.33333ns);
 
         reset_dut();
-        
+
         test_name = "correct data0";
         buffer_occupancy = 0;
         sync_byte(); //1byte
         data0_pid(); //1byte
-        random_data(); //2bytes
-        random_data(); //2bytes
+        twobytesofdata(); //2bytes
+        twobytesofdata(); //2bytes
         data_crc(); //2bytes
         eop(); //EOP
         #(83.33333ns);
@@ -351,13 +504,13 @@ module tb_usb_rx ();
         #(83.33333ns);
 
         reset_dut();
-        
+
         test_name = "correct data1";
         buffer_occupancy = 0;
         sync_byte(); //1byte
         data1_pid(); //1byte
-        random_data(); //2bytes
-        random_data(); //2bytes
+        twobytesofdata(); //2bytes
+        twobytesofdata(); //2bytes
         data_crc(); //2bytes
         eop(); //EOP
         #(83.33333ns);
@@ -389,19 +542,84 @@ module tb_usb_rx ();
         #(83.33333ns);
 
         reset_dut();
-        
-        test_name = "buffer filled";
-        buffer_occupancy = 62;
+
+        test_name = "Buffer Filled";
         sync_byte(); //1byte
         data0_pid(); //1byte
-        random_data(); //2bytes
+        buffer_occupancy = 63;
+        twobytesofdata(); //2bytes
+        onebyteofdata(); //1byte
+        repeat(9) begin @(negedge clk); end
         buffer_occupancy = 64;
-        random_data(); //2bytes
+        onebyteofdata(); //1byte
         data_crc(); //2bytes
         eop(); //EOP
         #(83.33333ns);
         #(83.33333ns);
         #(83.33333ns);
+
+
+        reset_dut();
+
+        test_name = "EOP Error";
+        buffer_occupancy = 0;
+        sync_byte();
+        ack_pid();
+        dp_in = 1;
+        dm_in = 0;
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+
+        reset_dut();
+
+        test_name = "Incorrect CRC";
+        buffer_occupancy = 0;
+        sync_byte(); //1byte
+        in_pid(); //1byte
+        incorrect_token_data_crc(); //2bytes
+        eop(); //EOP
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+        
+        reset_dut();
+        
+        test_name = "Incorrect PID";
+        buffer_occupancy = 0;
+        sync_byte();
+        incorrect_pid();
+        eop();
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+
+        reset_dut();
+        
+        test_name = "Incorrect Sync";
+        buffer_occupancy = 0;
+        incorrect_sync_byte();
+        ack_pid();
+        eop();
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+
+        reset_dut();
+
+        test_name = "Incorrect Endpoint";
+        buffer_occupancy = 0;
+        sync_byte(); //1byte
+        out_pid(); //1byte
+        token_data_crc_incorrect_ep(); //2bytes
+        eop(); //EOP
+        #(83.33333ns);
+        #(83.33333ns);
+        #(83.33333ns);
+
 
         $finish;
     end
