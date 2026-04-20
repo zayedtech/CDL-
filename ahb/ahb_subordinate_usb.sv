@@ -38,9 +38,9 @@ module ahb_subordinate_usb (
    localparam [2:0] BURST_SINGLE  = 3'd0;
 
 
-   localparam [2:0] SIZE_BYTE     = 3'd0;
-   localparam [2:0] SIZE_HALFWORD = 3'd1;
-   localparam [2:0] SIZE_WORD     = 3'd2;
+   localparam [2:0] SIZE_BYTE     = 2'd0;
+   localparam [2:0] SIZE_HALFWORD = 2'd1;
+   localparam [2:0] SIZE_WORD     = 2'd2;
 
 
    // Matches rx_packet coding from control_fsm/usb_rx:
@@ -109,6 +109,8 @@ module ahb_subordinate_usb (
    logic bypass_c;
    logic bypass_d;
    logic [7:0] bypass_data;
+   logic [7:0] prev_write_byte;
+   logic status_read_hit;
 
 
    logic start_buf_write;
@@ -260,14 +262,31 @@ module ahb_subordinate_usb (
        bypass_c = 1'b0;
        bypass_d = 1'b0;
        bypass_data = 8'h00;
+       prev_write_byte = 8'h00;
        if (prev_valid && prev_write && (prev_size == SIZE_BYTE)) begin
+           case (prev_addr[1:0])
+               2'd0: prev_write_byte = hwdata[7:0];
+               2'd1: prev_write_byte = hwdata[15:8];
+               2'd2: prev_write_byte = hwdata[23:16];
+               default: prev_write_byte = hwdata[31:24];
+           endcase
            if (prev_addr == 4'hC) begin
                bypass_c = 1'b1;
-               bypass_data = hwdata[7:0];
+               bypass_data = prev_write_byte;
            end else if (prev_addr == 4'hD) begin
                bypass_d = 1'b1;
-               bypass_data = hwdata[7:0];
+               bypass_data = prev_write_byte;
            end
+       end
+   end
+
+   always_comb begin
+       status_read_hit = 1'b0;
+       if (active_transfer && !hwrite && !current_error && !start_buf_read) begin
+           if ((hsize == SIZE_BYTE) && ((haddr == 4'h4) || (haddr == 4'h5)))
+               status_read_hit = 1'b1;
+           else if ((hsize == SIZE_HALFWORD) && (haddr == 4'h4))
+               status_read_hit = 1'b1;
        end
    end
 
@@ -341,11 +360,9 @@ module ahb_subordinate_usb (
        case (state)
            ST_IDLE: begin
                if (current_error) begin
-                   // Keep addr-only phase clean; drive ERROR in ST_ERR_1/ST_ERR_2.
                    hready = 1'b1;
                    hresp  = 1'b0;
                end else if (start_buf_write) begin
-                   // Buffer writes stall in their data phase.
                    hready = 1'b0;
                end else begin
                    if (active_transfer && !hwrite && !current_error && (haddr <= 4'h3) && (hsize == SIZE_BYTE) && (buffer_occupancy != 7'd0))
@@ -367,7 +384,8 @@ module ahb_subordinate_usb (
            end
            ST_ERR_2: begin
                hready = 1'b1;
-               hresp  = 1'b1;
+               //hresp  = 1'b0;
+               hresp = 1'b1;
            end
            ST_BUF_WRITE: begin
                hready = 1'b0;
@@ -427,10 +445,16 @@ module ahb_subordinate_usb (
 
            if (rx_data_ready & (rx_packet != PID_ACK))
                status_new_data_reg <= 1'b1;
-           if (flush_reg)
+           if (buffer_occupancy == 0)
                status_new_data_reg <= 1'b0;
-           else if (get_rx_data && (buffer_occupancy == 7'd1))
-               status_new_data_reg <= 1'b0;
+           //if (flush_reg)
+             //  status_new_data_reg <= 1'b0;
+           //else if (get_rx_data && (buffer_occupancy == 7'd1))
+            //   status_new_data_reg <= 1'b0;
+           //if (buffer_occupancy != 0)
+             //  status_new_data_reg <= 1'b1;
+           //else
+             //  status_new_data_reg <= 1'b0;
            if (rx_packet == PID_IN)
                status_in_reg <= 1'b1;
            if (rx_packet == PID_OUT)
@@ -445,8 +469,19 @@ module ahb_subordinate_usb (
                error_rx_reg <= 1'b1;
            if (tx_error)
                error_tx_reg <= 1'b1;
+           if (rx_transfer_active)
+               error_rx_reg <= 1'b0;
+           if (tx_transfer_active)
+               error_tx_reg <= 1'b0;
            if (flush_reg)
                flush_reg <= 1'b0;
+           if (status_read_hit) begin
+               status_in_reg <= 1'b0;
+               status_out_reg <= 1'b0;
+               status_ack_reg <= 1'b0;
+               status_data0_reg <= 1'b0;
+               status_data1_reg <= 1'b0;
+           end
 
 
            case (state)
@@ -477,7 +512,7 @@ module ahb_subordinate_usb (
                    if (prev_valid && prev_write) begin
                        if (prev_size == SIZE_BYTE) begin
                            if (prev_addr == 4'hC) begin
-                               case (hwdata[7:0])
+                               case (prev_write_byte)
                                    8'd1: tx_packet_reg <= TX_DATA0;
                                    8'd2: tx_packet_reg <= TX_DATA1;
                                    8'd3: tx_packet_reg <= TX_ACK;
@@ -486,7 +521,7 @@ module ahb_subordinate_usb (
                                    default: tx_packet_reg <= tx_packet_reg;
                                endcase
                            end
-                           if (prev_addr == 4'hD && hwdata[7:0] == 8'h01)
+                           if (prev_addr == 4'hD && prev_write_byte == 8'h01)
                                flush_reg <= 1'b1;
                        end
                    end
