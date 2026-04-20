@@ -4,7 +4,7 @@ module usb_rx (input logic clk, n_rst, dp_in, dm_in, input logic [6:0] buffer_oc
 
 logic dp, dm, dpshift_strobe, unusedbit, unusedbit4, end_packet, serial_in, new_pack, pid_error, data_1, data_0, out_token, in_token, ack, token_done, cycles_8, data_done, data_done_ffin, pidsyncshift_strobe, unusedbit2, unusedbit3, data_en, token_en, token_end;
 logic clear_err, en_timer, transfer_active, eop_err, pack_done, flush_token, timer_8, unused1, syncpid_end, serial_ff, data_error, flush_data, data_strobe, data_end, sync_error, syncpid_end_ffout, store_ffin, store_token_ffout, store_data_ffout, data_end_ffout, data_en_ffin;
-logic token_done_ffin, store_token_ffin, token_error, store_data_ffin, token_end_ffout, token_en_ffin, token_strobe, token_error_ffin;
+logic token_done_ffin, store_token_ffin, token_error, store_data_ffin, token_end_ffout, token_en_ffin, token_strobe, token_error_ffin, data_error_ffin;
 logic [1:0] unused, twobits, unused5, twobitsm, count_ffin, count_ffout, count_t_ffin, count_t_ffout;
 logic [13:0] cycles; 
 logic [3:0] unused2;
@@ -47,7 +47,7 @@ always_comb begin : startBitDetector
 end
 
 control_fsm CFSM(.clk(clk), .n_rst(n_rst), .new_pack(new_pack), .pid_error(pid_error), .data_1(data_1), .data_0(data_0), .out_token(out_token), .in_token(in_token), .ack(ack), .token_done(token_done), .cycles_8(cycles_8), .dm(twobitsm[0]), .dp(twobits[0]), .data_done(data_done),
-.clear_err(clear_err), .en_timer(en_timer), .rx_data_ready(rx_data_ready), .transfer_active(transfer_active), .flush_data(flush_data), .eop_err(eop_err), .pack_done(pack_done), .flush_token(flush_token), .timer_8(timer_8), .rx_packet(rx_packet));
+.clear_err(clear_err), .en_timer(en_timer), .rx_data_ready(rx_data_ready), .transfer_active(transfer_active), .flush_data(flush_data), .eop_err(eop_err), .pack_done(pack_done), .flush_token(flush_token), .timer_8(timer_8), .rx_packet(rx_packet), .data_err(data_error), .token_err(token_error), .sync_err(sync_error));
 
 //timer timerfsm16(.clk(clk), .n_rst(n_rst), .enable_timer(flush_token), .data_size(5'b10000), .bit_period(14'b00000000001000),  .shift_strobe(unused1), .packet_done(token_done));
 
@@ -56,7 +56,7 @@ flex_counter #(.SIZE(4)) counter8 (
         .n_rst(n_rst),
         .clear(~timer_8),  
         .count_enable(timer_8),
-    .rollover_val(4'b1000),
+        .rollover_val(4'b1000),
         .count_out(unused2),
         .rollover_flag(cycles_8));
 
@@ -155,7 +155,7 @@ always_comb begin : errorChecker
     if(clear_err) begin
         rx_error = 0;
     end
-    else if(eop_err || sync_error || pid_error || data_error || token_error) begin
+    else if(eop_err) begin
         rx_error = 1;
     end
     else begin
@@ -197,17 +197,18 @@ end
 
 always_comb begin : dataChecker
 
-    if(buffer_occupancy == 64) begin
-        data_error = 1;
-    end
-    else begin
-        data_error = 0;
-    end
-
     if(data_end & !data_end_ffout) begin
 
-        if(count_ffout == 2) begin // 3rd holds new
+        if(buffer_occupancy == 64) begin
+            data_error_ffin = 1;
+            count_ffin = count_ffout;
+            store_data_ffin = 0;
+            data_ffin = data_ffout;
+            data_done_ffin = 0;
+        end
 
+        else if(count_ffout == 2) begin // 3rd holds new
+            data_error_ffin = 0;
             if(parallel_out[23:16] == parallel_out[15:8]) begin
                 
                 data_ffin = parallel_out[7:0];
@@ -231,7 +232,7 @@ always_comb begin : dataChecker
         end
 
         else begin
-
+            data_error_ffin = 0;
             count_ffin = count_ffout + 1;
             store_data_ffin = 0;
             data_ffin = data_ffout;
@@ -244,6 +245,7 @@ always_comb begin : dataChecker
         data_done_ffin = data_done;
         store_data_ffin = 0;
         data_ffin = data_ffout;
+        data_error_ffin = data_error;
     end
 
 end
@@ -254,12 +256,14 @@ always_ff @(posedge clk, negedge n_rst) begin
         store_data_ffout <= 0;
         data_ffout <= 0;
         count_ffout <= 0;
+        data_error <= 0;
     end
     else begin
         data_done <= data_done_ffin;
         store_data_ffout <= store_data_ffin;
         data_ffout <= data_ffin;
         count_ffout <= count_ffin;
+        data_error <= data_error_ffin;
     end
 end
 
@@ -297,36 +301,46 @@ end
 
 always_comb begin : tokenChecker
 
-    if((buffer_occupancy == 64) || (count_t_ffout == 2)) begin
-        token_error = 1;
-    end
-    else begin
-        token_error = 0;
-    end
-
     if(token_end & !token_end_ffout) begin
 
-        if(count_t_ffout == 0) begin // MSByte holds new, this branch outputs: count,store, token, token_done
+        if((buffer_occupancy == 64) || (count_t_ffout == 2)) begin
+            token_error_ffin = 1;
+            store_token_ffin = 0;
+            token_ffin = token_ffout;
+            token_done_ffin = 0;
+            count_t_ffin = count_t_ffout;
+        end
+
+        else if(count_t_ffout == 0) begin // MSByte holds new, this branch outputs: count,store, token, token_done
             token_ffin = parallel_out[23:16];
             store_token_ffin = 1;
             token_done_ffin = 0;
             count_t_ffin = count_t_ffout + 1;
+            token_error_ffin = 0;
         end
         else if(count_t_ffout == 1) begin
-            if(parallel_out[23:19] == 5'b01110) begin
+            
+            if(parallel_out[23:16] == 8'b01110000) begin
                 store_token_ffin = 1;
                 token_ffin = parallel_out[23:16];
                 token_done_ffin = 1;
                 count_t_ffin = count_t_ffout;
+
+                token_error_ffin = 0;
+
             end
             else begin
                 store_token_ffin = 0;
                 token_ffin = token_ffout;
                 token_done_ffin = 0;
                 count_t_ffin = count_t_ffout + 1;
+
+                token_error_ffin = 1;
+                
             end
         end
         else begin
+                token_error_ffin = 0;
                 store_token_ffin = 0;
                 token_ffin = token_ffout;
                 token_done_ffin = 0;
@@ -339,6 +353,7 @@ always_comb begin : tokenChecker
         token_done_ffin = token_done;
         store_token_ffin = 0;
         token_ffin = token_ffout;
+        token_error_ffin = token_error;
     end
 end
 
@@ -348,14 +363,14 @@ always_ff @(posedge clk, negedge n_rst) begin
         store_token_ffout <= 0;
         token_ffout <= 0;
         count_t_ffout <= 0;
-        //token_error <= 0;
+        token_error <= 0;
     end
     else begin
         token_done <= token_done_ffin;
         store_token_ffout <= store_token_ffin;
         token_ffout <= token_ffin;
         count_t_ffout <= count_t_ffin;
-        //token_error <= token_error_ffin;
+        token_error <= token_error_ffin;
     end
 end
 
