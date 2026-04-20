@@ -5,7 +5,7 @@ typedef enum logic [4:0]{
 } state_t;
 
 
-module control_fsm (input logic clk, n_rst, new_pack, pid_error, data_1, data_0, out_token, in_token, ack, token_done, cycles_8, dm, dp, data_done,
+module control_fsm (input logic clk, n_rst, new_pack, pid_error, data_1, data_0, out_token, in_token, ack, token_done, cycles_8, dm, dp, data_done, data_err, token_err, sync_err,
 output logic clear_err, en_timer, rx_data_ready, transfer_active, flush_data, eop_err, pack_done, flush_token, timer_8, output logic [2:0] rx_packet);
 
 state_t state, nextstate;
@@ -13,36 +13,41 @@ state_t state, nextstate;
 logic [2:0] packet_type_ffin, packet_type_ffout;
 
 always_comb begin : nextStateLogic
-    casez ({state, new_pack, pid_error, data_1, data_0, out_token, in_token, ack, token_done, cycles_8, dm, dp, data_done})
-        {IDLE, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = CLEAR; packet_type_ffin = packet_type_ffout;end
-        {CLEAR, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = START; packet_type_ffin = packet_type_ffout;end
-        {START, 1'b?, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = IDLE; packet_type_ffin = 3'b000;end
-        {START, 1'b?, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_DATA1;packet_type_ffin = 3'b010;end
-        {START, 1'b?, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_DATA0;packet_type_ffin = 3'b001;end
-        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_OUT; packet_type_ffin = 3'b110;end
-        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_IN;packet_type_ffin = 3'b111;end
-        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = ACK;packet_type_ffin = 3'b011;end
-        {OUT, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_START;packet_type_ffin = packet_type_ffout;end
-        {IN, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_START;packet_type_ffin = packet_type_ffout;end
-        {EOP_START, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_0;packet_type_ffin = packet_type_ffout;end
-        {EOP_0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b0, 1'b?}: begin nextstate = WAIT_1;packet_type_ffin = packet_type_ffout;end
-        {EOP_0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
-        {WAIT_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_1;packet_type_ffin = packet_type_ffout;end
-        {EOP_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b0, 1'b?}: begin nextstate = WAIT_2;packet_type_ffin = packet_type_ffout;end
-        {EOP_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
-        {WAIT_2, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?}:begin  nextstate = IDLE_VAL;packet_type_ffin = packet_type_ffout;end
-        {IDLE_VAL, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b1, 1'b?}: begin nextstate = DONE;packet_type_ffin = packet_type_ffout;end
-        {IDLE_VAL, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
-        {DONE, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = IDLE;packet_type_ffin = 3'b000;end
-        {ERROR, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = IDLE; packet_type_ffin = 3'b000;end
-        {DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: begin nextstate = EOP_START;  packet_type_ffin = packet_type_ffout;end  
-        {DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: begin nextstate = EOP_START;packet_type_ffin = packet_type_ffout;end
-        {ACK, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}:begin  nextstate = EOP_START;   packet_type_ffin = packet_type_ffout; end
-        {FL_DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = DATA1; packet_type_ffin = packet_type_ffout; end  
-        {FL_DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = DATA0; packet_type_ffin = packet_type_ffout;end   
+    casez ({state, new_pack, pid_error, data_1, data_0, out_token, in_token, ack, token_done, cycles_8, dm, dp, data_done, data_err, token_err, sync_err})
+        {IDLE, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = CLEAR; packet_type_ffin = packet_type_ffout;end
+        {CLEAR, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = START; packet_type_ffin = packet_type_ffout;end
+        {START, 1'b?, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0}: begin nextstate = ERROR; packet_type_ffin = packet_type_ffout;end
+        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1}: begin nextstate = ERROR; packet_type_ffin = packet_type_ffout;end
         
-        {FL_IN, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}:begin  nextstate = IN;   packet_type_ffin = packet_type_ffout; end
-        {FL_OUT, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = OUT;  packet_type_ffin = packet_type_ffout; end 
+        {START, 1'b?, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_DATA1;packet_type_ffin = 3'b010;end
+        {START, 1'b?, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_DATA0;packet_type_ffin = 3'b001;end
+        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_OUT; packet_type_ffin = 3'b110;end
+        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = FL_IN;packet_type_ffin = 3'b111;end
+        {START, 1'b?, 1'b0, 1'b0, 1'b0, 1'b0, 1'b0, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = ACK;packet_type_ffin = 3'b011;end
+        {OUT, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_START;packet_type_ffin = packet_type_ffout;end
+        {IN, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_START;packet_type_ffin = packet_type_ffout;end
+        {EOP_START, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_0;packet_type_ffin = packet_type_ffout;end
+        {EOP_0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = WAIT_1;packet_type_ffin = packet_type_ffout;end
+        {EOP_0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
+        {WAIT_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = EOP_1;packet_type_ffin = packet_type_ffout;end
+        {EOP_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = WAIT_2;packet_type_ffin = packet_type_ffout;end
+        {EOP_1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
+        {WAIT_2, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}:begin  nextstate = IDLE_VAL;packet_type_ffin = packet_type_ffout;end
+        {IDLE_VAL, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b1, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = DONE;packet_type_ffin = packet_type_ffout;end
+        {IDLE_VAL, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
+        {DONE, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = IDLE;packet_type_ffin = 3'b000;end
+        {ERROR, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = IDLE; packet_type_ffin = 3'b000;end
+        {DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b0, 1'b?, 1'b?}: begin nextstate = EOP_START;  packet_type_ffin = packet_type_ffout;end  
+        {DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b0, 1'b?, 1'b?}: begin nextstate = EOP_START;packet_type_ffin = packet_type_ffout;end
+        {ACK, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}:begin  nextstate = EOP_START;   packet_type_ffin = packet_type_ffout; end
+        {FL_DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = DATA1; packet_type_ffin = packet_type_ffout; end  
+        {FL_DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = DATA0; packet_type_ffin = packet_type_ffout;end     
+        {FL_IN, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}:begin  nextstate = IN;   packet_type_ffin = packet_type_ffout; end
+        {FL_OUT, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?}: begin nextstate = OUT;  packet_type_ffin = packet_type_ffout; end 
+        {DATA0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?}: begin nextstate = ERROR;  packet_type_ffin = packet_type_ffout;end  
+        {DATA1, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
+        {OUT, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
+        {IN, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b0, 1'b?, 1'b?, 1'b?, 1'b?, 1'b?, 1'b1, 1'b?}: begin nextstate = ERROR;packet_type_ffin = packet_type_ffout;end
         
         //add their output downstairs
 
